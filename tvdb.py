@@ -57,9 +57,10 @@ class Episode:
         self.air_date = air_date
 
     def __repr__(self):
-        return "S{season:02d}E{ep:02d} - {title:s}".format(season=self.season,
-                                                           ep=self.ep,
-                                                           title=self.title)
+        return "{air:s} - S{season:02d}E{ep:02d} - {title:s}".format(air=self.air_date,
+                                                                     season=self.season,
+                                                                     ep=self.ep,
+                                                                     title=self.title)
 
 
 def get_show_info(series_id):
@@ -104,17 +105,20 @@ def get_show_episodes(series_id):
         season_num = ep.find("SeasonNumber").text
         ep_num = ep.find("EpisodeNumber").text
         ep_name = ep.find("EpisodeName").text
+        air_date = ep.find("FirstAired").text
 
-        print season_num, ep_num, ep_name
-        
         season_num.encode('utf-8') if season_num else None
         ep_num.encode('utf-8') if ep_num else None
         ep_name.encode('utf-8') if ep_name else None
+        air_date.encode('utf-8') if air_date else None
 
         season_num = int(season_num)
         ep_num = int(ep_num)
         
-        show[season_num][ep_num] = Episode(ep_name, season_num, ep_num)
+        show[season_num][ep_num] = Episode(ep_name,
+                                           season_num,
+                                           ep_num,
+                                           air_date)
 
     return show
 
@@ -122,6 +126,9 @@ def get_show_episodes(series_id):
 # search('simpsons')
 # get_show_info(71663)
 simps = get_show_episodes(71663)
+rick = get_show_episodes(275274)
+peep = get_show_episodes(71656)
+
 
 '''  RENAMING FILES 
 season = 1
