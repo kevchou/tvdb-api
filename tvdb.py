@@ -44,11 +44,13 @@ class Season(dict):
             return dict.__getitem__(self, episode)
 
     def __repr__(self):
-        return "{:s} - Season {:d}, {:d} Episodes".format(self.show_name,
-                                                          self.season,
-                                                          len(self))
+        return ("List of episodes for season {:d}:\n".format(self.season) +
+                "\n".join(self.get_episode_list()))
 
+    def get_episode_list(self):
+        return [str(ep.ep) + " - " +  ep.title for ep in self.values()]
 
+        
 class Episode:
     def __init__(self, title, season, ep, air_date=None):
         self.title = title
