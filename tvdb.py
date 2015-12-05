@@ -13,6 +13,28 @@ SERIES_EPISODES_URL = '/series/{id}/all/en.xml'
 APIKEY = '15C9D64D3EFCC581'
 
 
+
+# Video file extensions
+exts = ['.mkv', '.mp4', '.avi']
+
+
+## REGULAR EXPRESSIONS FOR FILE NAME SEARCHES
+
+# Multi episode files, like 'S09E01 - E02"
+multi_ep_regex = re.compile('([sS][0-9]+[eE][0-9]+.*[eE][0-9]+)|([0-9]+(x|\.)[0-9]+(x|\.)[0-9]+)')
+
+# Looks for strings like "S09E01" or "9x01", "9.01"
+single_ep_regex = re.compile('([sS][0-9]+[eE][0-9]+)|([0-9]+(x|\.)[0-9]+)')
+
+# Regex for file extensions
+video_ext_regex = re.compile('(\.mkv|\.avi|\.mp4)')
+
+s_rgx = re.compile('[sS][0-9]+')
+e_rgx = re.compile('[eE][0-9]+')
+alt_rgx = re.compile('(x|\.)')
+
+
+
 class Show(dict):
     def __init__(self, title):
         dict.__init__(self)
@@ -151,28 +173,6 @@ def get_show(show_name, num = None):
         print "\nPick the show using 'num' in the argument. Eg. get_show('seinfeld', 0)"
 
     return None
-        
-
-
-
-
-# Multi episode files, like 'S09E01 - E02"
-multi_ep_regex = re.compile('([sS][0-9]+[eE][0-9]+.*[eE][0-9]+)')
-
-# Looks for strings like "S09E01" or "9x01", "9.01"
-single_ep_regex = re.compile('([sS][0-9]+[eE][0-9]+)|([0-9]+(x|\.)[0-9]+)')
-
-# Regex for file extensions
-video_ext_regex = re.compile('(\.mkv|\.avi|\.mp4)')
-
-s_regex = re.compile('[sS][0-9]+')
-e_regex = re.compile('[eE][0-9]+')
-alt_regex = re.compile('(x|\.)')
-
-exts = ['.mkv', '.mp4', '.avi']
-
-
-
 
 
 def rename_all_shows_in_dir(dir, num = None):
@@ -183,16 +183,15 @@ def rename_all_shows_in_dir(dir, num = None):
 
     # Extract show name and season number from the input directory
     show_name = os.path.basename(show_dir)
-
+    season_string = re.compile('Season|Series\ ').search(season_dir)
+    season_num = int(season_dir[season_string.end():])
+    
     show = get_show(show_name, num=num)
 
     if not show:
         print "{:s} has multiple search results. Rerun function with a number arugument".format(show_name)
         print "Eg. rename_all_shows_in_dir('seinfeld', 0)"
         return None
-
-    season_string = re.compile('Season\ ').search(season_dir)
-    season_num = int(season_dir[season_string.end():])
 
     # Gets all files in the directory that is not hidden and has a video extension
     all_files = sorted(os.listdir(dirpath))
@@ -204,72 +203,107 @@ def rename_all_shows_in_dir(dir, num = None):
 
         # File extension
         file_ext = video_ext_regex.search(old_file_name).group()
-
+        
         multi = multi_ep_regex.search(old_file_name)
-
+        
         if multi:
-
-            # Extracts the 'S09E01-E02' part of the file name
-            label = multi.group() 
-
-            # Get season number
-            season_label = s_regex.search(label).group()
-            season = int(season_label[1:])
-
-            # Gets the episode numbers
-            ep_labels = [ep.group() for ep in e_regex.finditer(label)]
-            eps = [int(ep[1:]) for ep in ep_labels]
-
-            ep_title_1 = show[season][eps[0]].title
-            ep_title_2 = show[season][eps[1]].title
-
-            # Seaches for parenthesis like "<Episode name> (1)"
-            ep_part_parens = re.compile('\([0-9]\)')
-
-            start_of_parens_1 = ep_part_parens.search(ep_title_1).start()
-            ep_title_1_clean = ep_title_1[:start_of_parens_1].strip()
-
-            start_of_parens_2 = ep_part_parens.search(ep_title_2).start()
-            ep_title_2_clean = ep_title_2[:start_of_parens_2].strip()
-
-            # If the episode names are the same, then set title as first episode name
-            if ep_title_1_clean == ep_title_2_clean:
-                season_ep_label = "S{season:02d}E{ep1:02d}E{ep2:02d}".format(season=season,
-                                                                              ep1=eps[0],
-                                                                              ep2=eps[1])
-                ep_name = ep_title_1_clean.encode('utf-8')
-
+            season_ep_label, ep_name = extract_ep_info_multi(multi.group(), show)
         else:
-            # This Else statement handles single episodes. Eg. 'S01E01'
-
-            label = single_ep_regex.search(old_file_name).group()
-
-            season_label = s_regex.search(label)
-            episode_label = e_regex.search(label)
-
-            # check if file's season and episode is formatted as 'S01E01' or not.
-            if season_label and episode_label:
-                season_num = int(label[season_label.start()+1 : episode_label.start()])
-                ep_num     = int(label[episode_label.start()+1 :])
-            else:
-                s3 = alt_regex.search(seas_ep)
-                season_num = int(seas_ep[:s3.start()])
-                ep_num     = int(seas_ep[s3.start()+1:])
-
-            season_ep_label = 'S{season:02d}E{ep:02d}'.format(season=season_num,
-                                                              ep=ep_num)
-            ep_name = show[season_num][ep_num].title.encode('utf-8')
-
+            single = single_ep_regex.search(old_file_name)
+            season_ep_label, ep_name = extract_ep_info_single(single.group(), show)
 
         new_file_name = "{title:s} - {seas_ep:s} - {ep_name:s}{ext:s}".format(title=show.title,
                                                                               seas_ep=season_ep_label,
                                                                               ep_name=ep_name,
                                                                               ext=file_ext)
 
-        print new_file_name
-        #os.rename(dirpath + '/' + old_file_name, dirpath + '/' + new_file_name)
+        print old_file_name + "\t -> \t" + new_file_name
+        
+        if old_file_name != new_file_name:
+            os.rename(dirpath + '/' + old_file_name, dirpath + '/' + new_file_name)
 
 
-dir = '/Users/kevinchou/Movies/Fargo/Season 2'
-rename_all_shows_in_dir(dir, 0)
+
+def extract_ep_info_multi(label, show):
+    """ Takes the season and ep label of a multi episode file (eg. S09E01 & E02) and a Show
+    object as input, returns the formatted season and episode label and episode name """
+
+    # Get season number
+    season_label = s_rgx.search(label)
+    if season_label:
+        season_label = season_label.group()
+        season = int(season_label[1:])
+
+        # Gets the episode numbers
+        ep_labels = [ep.group() for ep in e_rgx.finditer(label)]
+        eps = [int(ep[1:]) for ep in ep_labels]
+
+    else:
+        labels_split = alt_rgx.split(label)
+        season = int(labels_split[0])
+        eps = [int(labels_split[2]), int(labels_split[4])]
+    
+    ep_title_1 = show[season][eps[0]].title
+    ep_title_2 = show[season][eps[1]].title
+
+    season_ep_label = "S{season:02d}E{ep1:02d}-E{ep2:02d}".format(season=season,
+                                                                      ep1=eps[0],
+                                                                      ep2=eps[1])
+    # Seaches for parenthesis like "<Episode name> (1)"
+    ep_part_parens = re.compile('\([0-9]\)')
+    
+    parens_1 = ep_part_parens.search(ep_title_1)
+    parens_2 = ep_part_parens.search(ep_title_2)
+    
+    if parens_1 and parens_2:
+        ep_title_1_clean = ep_title_1[:parens_1.start()].strip()
+        ep_title_2_clean = ep_title_2[:parens_2.start()].strip()
+
+        
+        # If the episode names are the same, then set title as first episode name
+        if ep_title_1_clean == ep_title_2_clean:
+            ep_name = ep_title_1_clean.encode('utf-8')
+    else:
+        ep_name = ep_title_1 + ' and ' + ep_title_2
+    
+    return season_ep_label, ep_name
+
+
+def extract_ep_info_single(label, show):
+    """ Takes the season and ep label of a single episode file (eg. S09E01) and a Show
+    object as input, returns the formatted season and episode label and episode name """
+
+    season_label = s_rgx.search(label)
+    episode_label = e_rgx.search(label)
+
+    # check if file's season and episode is formatted as 'S01E01' or not.
+    if season_label and episode_label:
+        season_num = int(label[season_label.start()+1 : episode_label.start()])
+        ep_num     = int(label[episode_label.start()+1 :])
+    else:
+        s3 = alt_rgx.search(label)
+        season_num = int(label[:s3.start()])
+        ep_num     = int(label[s3.start()+1:])
+
+    season_ep_label = 'S{season:02d}E{ep:02d}'.format(season=season_num,
+                                                      ep=ep_num)
+    
+    ep_name = show[season_num][ep_num].title.encode('utf-8')
+
+    return season_ep_label, ep_name
+
+
+
+
+
+        
+# dir = '/Volumes/Kevin/TV Shows/Broad City/'
+# rename_all_shows_in_dir(dir)
+
+
+rootdir = '/Volumes/Kevin/TV Shows/Broad City/'
+for season in [d for d in os.listdir(rootdir) if d.startswith('Season')]:
+    d = rootdir + season
+    rename_all_shows_in_dir(d, 0)
+
 
