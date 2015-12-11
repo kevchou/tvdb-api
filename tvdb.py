@@ -1,6 +1,9 @@
+#!/usr/bin/env python
+
 import re
 import os
 import urllib
+import sys, getopt
 from xml.etree.ElementTree import parse
 
 TVDB_URL = 'http://thetvdb.com/api/'
@@ -15,7 +18,7 @@ APIKEY = '15C9D64D3EFCC581'
 
 
 # Video file extensions
-exts = ['.mkv', '.mp4', '.avi']
+exts = ('.mkv', '.mp4', '.avi')
 
 
 ## REGULAR EXPRESSIONS FOR FILE NAME SEARCHES
@@ -24,7 +27,7 @@ exts = ['.mkv', '.mp4', '.avi']
 multi_ep_regex = re.compile('([sS][0-9]+[eE][0-9]+.*[eE][0-9]+)|([0-9]+(x|\.)[0-9]+(x|\.)[0-9]+)')
 
 # Looks for strings like "S09E01" or "9x01", "9.01"
-single_ep_regex = re.compile('([sS][0-9]+[eE][0-9]+)|([0-9]+(x|\.)[0-9]+)')
+single_ep_regex = re.compile('([sS][0-9]+.?[eE][0-9]+)|([0-9]+(x|\.)[0-9]+)')
 
 # Regex for file extensions
 video_ext_regex = re.compile('(\.mkv|\.avi|\.mp4)')
@@ -152,7 +155,6 @@ def get_show_episodes(series_id):
                                            season_num,
                                            ep_num,
                                            air_date)
-
     return show
 
 
@@ -161,66 +163,82 @@ def get_show(show_name, num = None):
 
     if len(search_results) == 0:
         print 'No results. Try another query'
+        return None
+        
     elif len(search_results) == 1:
         return get_show_episodes(search_results[0][2])
+    
     elif num is not None:
         return get_show_episodes(search_results[num][2])
+    
     else:
-        print "search results has more than 1 result:"
+        print "Search results has more than 1 result:"
         for r in search_results:
             print 'num: {:d} \t show: {:s}'.format(r[0], r[1])
         
-        print "\nPick the show using 'num' in the argument. Eg. get_show('seinfeld', 0)"
+        print "\nUse function with the 'num' argument. Eg. get_show('seinfeld', 0)"
 
-    return None
+        return None
 
 
-def rename_all_shows_in_dir(dir, num = None):
+def rename_all_shows_in_dir(dir, show_name = None, num = None):
 
     dirpath = os.path.realpath(dir)
 
-    show_dir, season_dir = os.path.split(dirpath)
-
-    # Extract show name and season number from the input directory
-    show_name = os.path.basename(show_dir)
-    season_string = re.compile('Season|Series\ ').search(season_dir)
-    season_num = int(season_dir[season_string.end():])
-    
+    if show_name is None:
+        show_name = os.path.basename(dirpath)
     show = get_show(show_name, num=num)
 
-    if not show:
+    if show is None:
         print "{:s} has multiple search results. Rerun function with a number arugument".format(show_name)
         print "Eg. rename_all_shows_in_dir('seinfeld', 0)"
         return None
 
-    # Gets all files in the directory that is not hidden and has a video extension
-    all_files = sorted(os.listdir(dirpath))
-    ep_files = [f for f in all_files if f[-4:] in exts and f[0] != '.']
-
-    # Loop through each video file
-    for i in xrange(0, len(ep_files)):
-        old_file_name = ep_files[i]
-
-        # File extension
-        file_ext = video_ext_regex.search(old_file_name).group()
+    # Looks through each folder to find episode files
+    for root, directory, files in os.walk(dir):
         
-        multi = multi_ep_regex.search(old_file_name)
-        
-        if multi:
-            season_ep_label, ep_name = extract_ep_info_multi(multi.group(), show)
-        else:
-            single = single_ep_regex.search(old_file_name)
-            season_ep_label, ep_name = extract_ep_info_single(single.group(), show)
+        # Gets all files in the directory that is not hidden and has a video extension
+        ep_files = [f for f in files if f.endswith(exts) and f[0] != '.']
 
-        new_file_name = "{title:s} - {seas_ep:s} - {ep_name:s}{ext:s}".format(title=show.title,
-                                                                              seas_ep=season_ep_label,
-                                                                              ep_name=ep_name,
-                                                                              ext=file_ext)
+        # Loop through each video file
+        for i in xrange(0, len(ep_files)):
+            old_file_name = ep_files[i]
 
-        print old_file_name + "\t -> \t" + new_file_name
-        
-        if old_file_name != new_file_name:
-            os.rename(dirpath + '/' + old_file_name, dirpath + '/' + new_file_name)
+            rename_file(show, root, old_file_name)
+
+
+def rename_file(show, root, old_name):
+
+    file_ext = video_ext_regex.search(old_name).group()
+    
+    season_ep, ep_name = get_ep_info_from_filename(old_name, show)
+    
+    new_name = "{title:s} - {seas_ep:s} - {ep_name:s}{ext:s}".format(title=show.title,
+                                                                     seas_ep=season_ep,
+                                                                     ep_name=ep_name,
+                                                                     ext=file_ext)
+
+    if old_name != new_name:
+        print old_name + "\t -> \t" + new_name
+        os.rename(root + '/' + old_name, root + '/' + new_name)
+            
+            
+def get_ep_info_from_filename(file_name, show):
+
+    # check if file contains two episodes. Eg something like S09E01-E02
+    multi = multi_ep_regex.search(file_name)
+    
+    if multi:
+        season_ep_label, ep_name = extract_ep_info_multi(multi.group(), show)
+    else:
+        single = single_ep_regex.search(file_name)
+        season_ep_label, ep_name = extract_ep_info_single(single.group(), show)
+
+    for ch in list('!@#$%^&'):
+        if ch in ep_name:
+            ep_name = ep_name.replace(ch, '_')
+                   
+    return season_ep_label, ep_name        
 
 
 
@@ -278,8 +296,8 @@ def extract_ep_info_single(label, show):
 
     # check if file's season and episode is formatted as 'S01E01' or not.
     if season_label and episode_label:
-        season_num = int(label[season_label.start()+1 : episode_label.start()])
-        ep_num     = int(label[episode_label.start()+1 :])
+        season_num = int(label[season_label.start()+1 : season_label.end()])
+        ep_num     = int(label[episode_label.start()+1 : episode_label.end()])
     else:
         s3 = alt_rgx.search(label)
         season_num = int(label[:s3.start()])
@@ -293,17 +311,28 @@ def extract_ep_info_single(label, show):
     return season_ep_label, ep_name
 
 
+# rootdir = '/Volumes/Kevin/TV Shows/Broad City/'
+# for season in [d for d in os.listdir(rootdir) if d.startswith('Season')]:
+#     d = rootdir + season
+#     rename_all_shows_in_dir(d, 0)
+
+def main(argv):
+
+    show_name, num = None, None
+    
+    try:
+        opts, _ = getopt.getopt(argv, 's:n:')
+    except:
+        print "tvdb.py -s 'seinfeld' -n 0"
+    
+    for opt, arg in opts:
+        if opt == '-s':
+            show_name = arg
+        elif opt == '-n':
+            num = int(arg)
+            
+    rename_all_shows_in_dir(os.getcwd(), show_name=show_name, num=num)
 
 
-
-        
-# dir = '/Volumes/Kevin/TV Shows/Broad City/'
-# rename_all_shows_in_dir(dir)
-
-
-rootdir = '/Volumes/Kevin/TV Shows/Broad City/'
-for season in [d for d in os.listdir(rootdir) if d.startswith('Season')]:
-    d = rootdir + season
-    rename_all_shows_in_dir(d, 0)
-
-
+if __name__ == "__main__":
+    main(sys.argv[1:])
