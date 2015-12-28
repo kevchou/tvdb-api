@@ -212,12 +212,17 @@ def rename_file(show, root, old_name):
     file_ext = video_ext_regex.search(old_name).group()
     
     season_ep, ep_name = get_ep_info_from_filename(old_name, show)
-    
-    new_name = "{title:s} - {seas_ep:s} - {ep_name:s}{ext:s}".format(title=show.title,
-                                                                     seas_ep=season_ep,
-                                                                     ep_name=ep_name,
-                                                                     ext=file_ext)
 
+    ## Uncomment if you want show name in the file name
+    # new_name = "{title:s} - {seas_ep:s} - {ep_name:s}{ext:s}".format(title=show.title,
+    #                                                                  seas_ep=season_ep,
+    #                                                                  ep_name=ep_name,
+    #                                                                  ext=file_ext)
+
+    new_name = "{seas_ep:s} - {ep_name:s}{ext:s}".format(seas_ep=season_ep,
+                                                         ep_name=ep_name,
+                                                         ext=file_ext)
+    
     if old_name != new_name:
         print old_name + "\t -> \t" + new_name
         os.rename(root + '/' + old_name, root + '/' + new_name)
@@ -234,7 +239,7 @@ def get_ep_info_from_filename(file_name, show):
         single = single_ep_regex.search(file_name)
         season_ep_label, ep_name = extract_ep_info_single(single.group(), show)
 
-    for ch in list('!@#$%^&'):
+    for ch in list('!@#%^&:/'):
         if ch in ep_name:
             ep_name = ep_name.replace(ch, '_')
                    
