@@ -15,13 +15,11 @@ SERIES_EPISODES_URL = '/series/{id}/all/en.xml'
 
 APIKEY = '15C9D64D3EFCC581'
 
-
-
 # Video file extensions
 exts = ('.mkv', '.mp4', '.avi')
 
 
-## REGULAR EXPRESSIONS FOR FILE NAME SEARCHES
+##### REGULAR EXPRESSIONS FOR FILE NAME SEARCHES
 
 # Multi episode files, like 'S09E01 - E02"
 multi_ep_regex = re.compile('([sS][0-9]+[eE][0-9]+.*[eE][0-9]+)|([0-9]+(x|\.)[0-9]+(x|\.)[0-9]+)')
@@ -47,8 +45,7 @@ class Show(dict):
         if season in self:
             return dict.__getitem__(self, season)
         else:
-            dict.__setitem__(self, season, Season(title=self.title,
-                                                  season=season))
+            dict.__setitem__(self, season, Season(title=self.title, season=season))
             return dict.__getitem__(self, season)
 
     def __repr__(self):
@@ -186,6 +183,7 @@ def rename_all_shows_in_dir(dir, show_name = None, num = None):
     dirpath = os.path.realpath(dir)
 
     if show_name is None:
+        # If no show_name is given, uses folder name
         show_name = os.path.basename(dirpath)
     show = get_show(show_name, num=num)
 
@@ -315,11 +313,6 @@ def extract_ep_info_single(label, show):
 
     return season_ep_label, ep_name
 
-
-# rootdir = '/Volumes/Kevin/TV Shows/Broad City/'
-# for season in [d for d in os.listdir(rootdir) if d.startswith('Season')]:
-#     d = rootdir + season
-#     rename_all_shows_in_dir(d, 0)
 
 def main(argv):
 
