@@ -3,7 +3,7 @@
 import re
 import os
 import urllib
-import sys, getopt
+import sys, argparse
 from xml.etree.ElementTree import parse
 
 TVDB_URL = 'http://thetvdb.com/api/'
@@ -317,19 +317,21 @@ def extract_ep_info_single(label, show):
 def main(argv):
 
     show_name, num = None, None
+
+    parser = argparse.ArgumentParser(description="Renames file names")
+
+    parser.add_argument('--show', dest='show_name', required=True)
+    parser.add_argument('--num', dest='num', required=False)
+    args = parser.parse_args()
     
-    try:
-        opts, _ = getopt.getopt(argv, 's:n:')
-    except:
-        print "tvdb.py -s 'seinfeld' -n 0"
-    
-    for opt, arg in opts:
-        if opt == '-s':
-            show_name = arg
-        elif opt == '-n':
-            num = int(arg)
-            
-    rename_all_shows_in_dir(os.getcwd(), show_name=show_name, num=num)
+    if args.show_name:
+        show_name = args.show_name
+    if args.num:
+        num = int(args.num)
+
+    rename_all_shows_in_dir(os.getcwd(),
+                            show_name=show_name,
+                            num=num)
 
 
 if __name__ == "__main__":
